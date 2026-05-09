@@ -8,7 +8,12 @@ export class ChatController {
 
   @Post()
   async chat(
-    @Body() body: { message: string; provider?: string; model?: string; history?: any[] },
+    @Body() body: {
+      message: string;
+      provider?: string;
+      model?: string;
+      history?: Array<{ role: string; content: string }>;
+    },
     @Res() reply: FastifyReply,
   ) {
     reply.raw.writeHead(200, {
@@ -18,7 +23,12 @@ export class ChatController {
     });
 
     try {
-      const stream = this.chatService.streamChat(body.message, body.provider, body.model);
+      const stream = this.chatService.streamChat(
+        body.message,
+        body.provider,
+        body.model,
+        body.history || [],
+      );
 
       for await (const event of stream) {
         if (reply.raw.writableEnded) break;

@@ -14,242 +14,125 @@ interface ChatState {
   clearChat: () => void;
 }
 
-// Sistema de ações avançadas do JARBAS
 type ActionType = 'url' | 'clipboard' | 'search' | 'multi' | 'custom';
 
-interface Action {
+interface ActionResult {
   type: ActionType;
-  pattern: RegExp;
+  action: any;
   label: string;
-  execute: (match: RegExpMatchArray | null) => Promise<{ success: boolean; message: string }>;
 }
 
-const ADVANCED_ACTIONS: Action[] = [
-  // COPIAR TEXTO
-  {
-    type: 'clipboard',
-    pattern: /\b(?:copia|copie|cópia)\b\s+(?:o\s+)?texto\s+(.+?)(?:\s+para\s+clipboard)?$/i,
-    label: 'Copiando texto',
-    execute: async (match) => {
-      if (match && match[1]) {
-        try {
-          await navigator.clipboard.writeText(match[1].trim());
-          return { success: true, message: `✓ Texto copiado: "${match[1].trim()}"` };
-        } catch {
-          return { success: false, message: '⚠️ Erro ao copiar' };
-        }
-      }
-      return { success: false, message: '⚠️ Nenhum texto para copiar' };
-    },
-  },
-  // ABRIR MÚLTIPLOS SITES
-  {
-    type: 'multi',
-    pattern: /\b(?:abre|abra)\b.*\b(?:youtube|gmail|github|google)\b.*(?:\be\b|\,).*/i,
-    label: 'Abrindo múltiplas abas',
-    execute: async (match) => {
-      const urls: Record<string, string> = {
-        youtube: 'https://youtube.com',
-        gmail: 'https://mail.google.com',
-        github: 'https://github.com',
-        google: 'https://google.com',
-      };
-      const text = match?.[0]?.toLowerCase() || '';
-      Object.entries(urls).forEach(([name, url]) => {
-        if (text.includes(name)) {
-          window.open(url, '_blank');
-        }
-      });
-      return { success: true, message: '✓ Abas abertas' };
-    },
-  },
-  // BUSCA AVANÇADA
-  {
-    type: 'search',
-    pattern: /\b(?:pesquisa|busca|procura)\b\s+(?:sobre\s+)?(.+?)\s+(?:em|no)\s+(google|youtube|github|reddit)/i,
-    label: 'Pesquisa avançada',
-    execute: async (match) => {
-      if (match && match[1] && match[2]) {
-        const query = encodeURIComponent(match[1].trim());
-        const platform = match[2].toLowerCase();
-        const urls: Record<string, string> = {
-          google: `https://google.com/search?q=${query}`,
-          youtube: `https://youtube.com/results?search_query=${query}`,
-          github: `https://github.com/search?q=${query}`,
-          reddit: `https://reddit.com/search?q=${query}`,
-        };
-        const url = urls[platform];
-        if (url) {
-          window.open(url, '_blank');
-          return { success: true, message: `✓ Pesquisando no ${platform}...` };
-        }
-      }
-      return { success: false, message: '⚠️ Plataforma não reconhecida' };
-    },
-  },
+const SITES: Record<string, { url: string; label: string }> = {
+  youtube: { url: 'https://youtube.com', label: 'YouTube 🎬' },
+  yt: { url: 'https://youtube.com', label: 'YouTube 🎬' },
+  google: { url: 'https://google.com', label: 'Google 🔍' },
+  gmail: { url: 'https://mail.google.com', label: 'Gmail 📧' },
+  whatsapp: { url: 'https://web.whatsapp.com', label: 'WhatsApp 💬' },
+  instagram: { url: 'https://instagram.com', label: 'Instagram 📸' },
+  twitter: { url: 'https://x.com', label: 'Twitter 🐦' },
+  spotify: { url: 'https://open.spotify.com', label: 'Spotify 🎵' },
+  netflix: { url: 'https://netflix.com', label: 'Netflix 🎥' },
+  github: { url: 'https://github.com', label: 'GitHub 💻' },
+  linkedin: { url: 'https://linkedin.com', label: 'LinkedIn 💼' },
+  telegram: { url: 'https://web.telegram.org', label: 'Telegram ✈️' },
+  reddit: { url: 'https://reddit.com', label: 'Reddit 🤖' },
+  twitch: { url: 'https://twitch.tv', label: 'Twitch 🎮' },
+  discord: { url: 'https://discord.com/app', label: 'Discord 🎙️' },
+  chatgpt: { url: 'https://chat.openai.com', label: 'ChatGPT 🤖' },
+  shopee: { url: 'https://shopee.com.br', label: 'Shopee 🛍️' },
+  amazon: { url: 'https://amazon.com.br', label: 'Amazon 📦' },
+  mercadolivre: { url: 'https://mercadolivre.com.br', label: 'Mercado Livre 🛒' },
+  nubank: { url: 'https://nubank.com.br', label: 'Nubank 💜' },
+  ifood: { url: 'https://ifood.com.br', label: 'iFood 🍔' },
+  maps: { url: 'https://maps.google.com', label: 'Google Maps 🗺️' },
+  drive: { url: 'https://drive.google.com', label: 'Google Drive 📁' },
+  calendar: { url: 'https://calendar.google.com', label: 'Google Calendar 📅' },
+  notion: { url: 'https://notion.so', label: 'Notion 📝' },
+  figma: { url: 'https://figma.com', label: 'Figma 🎨' },
+};
+
+const OPEN_INTENT = /\b(abr[ia]r?|abre|abrir|open|acessa|vai|vá|entra|mostra|ir para|leva|navega|coloca|ligar|conecta)\b/i;
+const SEARCH_INTENT = /\b(pesquisa|busca|procura|search|googla|busque|pesquise|encontra|acha)\b/i;
+const MUSIC_INTENT = /\b(toca|coloca|reproduz|play|coloque|reproduza|toque|ouvir|quero ouvir)\b/i;
+const STOP_INTENT = /\b(para|parar|parou|pausar|pausa|stop|cala|silêncio|chega)\b/i;
+const CALC_INTENT = /(\d+)\s*([+\-*\/x÷])\s*(\d+)/;
+
+async function detectAction(content: string): Promise<ActionResult | null> {
+  const lower = content.toLowerCase().trim();
+
   // PARAR FALA
-  {
-    type: 'custom',
-    pattern: /\b(?:parou|para|parada|pausar|pausa|stop|muda de assunto|cala boca|silêncio)\b/i,
-    label: 'Pausando áudio',
-    execute: async () => {
-      if (typeof window !== 'undefined') {
-        window.speechSynthesis.cancel();
-      }
-      return { success: true, message: `🔇 Áudio pausado` };
-    },
-  },
-  // CALCULADORA RÁPIDA
-  {
-    type: 'custom',
-    pattern: /\b(\d+)\s*([+\-*\/])\s*(\d+)\b/i,
-    label: 'Calculando',
-    execute: async (match) => {
-      if (match && match[1] && match[2] && match[3]) {
-        try {
-          const a = parseFloat(match[1]);
-          const op = match[2];
-          const b = parseFloat(match[3]);
-          let result = 0;
-          switch (op) {
-            case '+': result = a + b; break;
-            case '-': result = a - b; break;
-            case '*': result = a * b; break;
-            case '/': result = b !== 0 ? a / b : 0; break;
-          }
-          return { success: true, message: `🧮 ${a} ${op} ${b} = ${result}` };
-        } catch {
-          return { success: false, message: '⚠️ Erro no cálculo' };
-        }
-      }
-      return { success: false, message: '⚠️ Operação inválida' };
-    },
-  },
-  // TOCAR MÚSICA
-  {
-    type: 'custom',
-    pattern: /\b(?:toca|coloca|reproduz|play|coloque|reproduza|toque)\b\s+(?:a\s+)?(?:música\s+)?(.+?)(?:\s+(?:no\s+)?spotify|no\s+youtube|no\s+yt)?$/i,
-    label: 'Tocando música',
-    execute: async (match) => {
-      if (match && match[1]) {
-        const musicName = match[1].trim();
-        const spotifyUrl = `https://open.spotify.com/search/${encodeURIComponent(musicName)}/tracks?si=`;
-        const youtubeUrl = `https://music.youtube.com/search?q=${encodeURIComponent(musicName)}`;
-        
-        window.open(spotifyUrl, '_blank');
-        return { success: true, message: `🎵 Tocando: ${musicName}` };
-      }
-      return { success: false, message: '⚠️ Qual música?' };
-    },
-  },
-  // DETECÇÃO DE MÚSICA POR NOME (sem comando "toca")
-  {
-    type: 'custom',
-    pattern: /^(?:eu sou um cordeirinho|despacito|bohemian rhapsody|imagine|blinding lights|levitating|good as hell|somebody to love|hey jude|let it be|don't stop me now|stairway to heaven|hotel california|sweet child of mine|enter sandman|smells like teen spirit|creep|wonderwall|fake plastic trees|beautiful day|viva la vida|fix you|yellow|in my life|strawberry fields forever|a day in the life|come together|twist and shout)$/i,
-    label: 'Tocando música',
-    execute: async (match) => {
-      if (match) {
-        const musicName = match[0].trim();
-        const spotifyUrl = `https://open.spotify.com/search/${encodeURIComponent(musicName)}/tracks?si=`;
-        
-        window.open(spotifyUrl, '_blank');
-        return { success: true, message: `🎵 Tocando: ${musicName}` };
-      }
-      return { success: false, message: '⚠️ Música não reconhecida' };
-    },
-  },
-  // PLAYLIST
-  {
-    type: 'custom',
-    pattern: /\b(?:toca|coloca|reproduz|abre)\b\s+(?:a\s+)?(?:playlist|album)\s+(?:")?(.+?)(?:")?(?:\s+(?:em|no)\s+(?:spotify|youtube|yt))?$/i,
-    label: 'Abrindo playlist',
-    execute: async (match) => {
-      if (match && match[1]) {
-        const playlistName = match[1].trim();
-        const spotifyUrl = `https://open.spotify.com/search/${encodeURIComponent(playlistName)}/playlists`;
-        
-        window.open(spotifyUrl, '_blank');
-        return { success: true, message: `📻 Abrindo playlist: ${playlistName}` };
-      }
-      return { success: false, message: '⚠️ Qual playlist?' };
-    },
-  },
-];
+  if (STOP_INTENT.test(lower) && lower.split(' ').length <= 3) {
+    window.speechSynthesis?.cancel();
+    return { type: 'custom', action: '🔇 Pausado.', label: '🔇 Áudio pausado' };
+  }
 
-// Lista de ações simples de URL
-const ACTIONS = [
-  { pattern: /\b(youtube|yt)\b/i, url: 'https://youtube.com', label: 'YouTube 🎬' },
-  { pattern: /\bgoogle\b/i, url: 'https://google.com', label: 'Google 🔍' },
-  { pattern: /\bgmail\b/i, url: 'https://mail.google.com', label: 'Gmail 📧' },
-  { pattern: /\bwhatsapp\b/i, url: 'https://web.whatsapp.com', label: 'WhatsApp 💬' },
-  { pattern: /\binstagram\b/i, url: 'https://instagram.com', label: 'Instagram 📸' },
-  { pattern: /\btwitter|x\.com\b/i, url: 'https://x.com', label: 'X (Twitter) 🐦' },
-  { pattern: /\bspotify\b/i, url: 'https://open.spotify.com', label: 'Spotify 🎵' },
-  { pattern: /\bnetflix\b/i, url: 'https://netflix.com', label: 'Netflix 🎥' },
-  { pattern: /\bgithub\b/i, url: 'https://github.com', label: 'GitHub 💻' },
-  { pattern: /\blinkedin\b/i, url: 'https://linkedin.com', label: 'LinkedIn 💼' },
-  { pattern: /\btelegram\b/i, url: 'https://web.telegram.org', label: 'Telegram ✈️' },
-  { pattern: /\breddit\b/i, url: 'https://reddit.com', label: 'Reddit 🤖' },
-  { pattern: /\btwitch\b/i, url: 'https://twitch.tv', label: 'Twitch 🎮' },
-  { pattern: /\bdiscord\b/i, url: 'https://discord.com/app', label: 'Discord 🎙️' },
-  { pattern: /\bchatgpt\b/i, url: 'https://chat.openai.com', label: 'ChatGPT 🤖' },
-  { pattern: /\bshoppe?e\b/i, url: 'https://shopee.com.br', label: 'Shopee 🛍️' },
-  { pattern: /\bamazon\b/i, url: 'https://amazon.com.br', label: 'Amazon 📦' },
-  { pattern: /\bmercado\s*livre\b/i, url: 'https://mercadolivre.com.br', label: 'Mercado Livre 🛒' },
-  { pattern: /\bnubank\b/i, url: 'https://nubank.com.br', label: 'Nubank 💜' },
-  { pattern: /\bifood\b/i, url: 'https://ifood.com.br', label: 'iFood 🍔' },
-];
+  // CALCULADORA
+  const calcMatch = lower.match(CALC_INTENT);
+  if (calcMatch) {
+    const a = parseFloat(calcMatch[1]);
+    const op = calcMatch[2];
+    const b = parseFloat(calcMatch[3]);
+    let result = 0;
+    if (op === '+') result = a + b;
+    else if (op === '-') result = a - b;
+    else if (op === '*' || op === 'x') result = a * b;
+    else if (op === '/' || op === '÷') result = b !== 0 ? a / b : 0;
+    return { type: 'custom', action: `🧮 ${a} ${op} ${b} = **${result}**`, label: 'Calculando' };
+  }
 
-async function detectAction(content: string): Promise<{ type: ActionType; action: any; label: string } | null> {
-  const lower = content.toLowerCase();
+  // MÚSICA
+  if (MUSIC_INTENT.test(lower)) {
+    const musicMatch = lower.match(/(?:toca|coloca|reproduz|play|coloque|reproduza|toque|ouvir|quero ouvir)\s+(?:a\s+)?(?:música\s+)?(.+?)(?:\s+no\s+(?:spotify|youtube|yt))?$/i);
+    if (musicMatch && musicMatch[1]) {
+      const name = musicMatch[1].trim();
+      const url = `https://open.spotify.com/search/${encodeURIComponent(name)}`;
+      window.open(url, '_blank');
+      return { type: 'url', action: url, label: `🎵 Tocando: ${name}` };
+    }
+  }
 
-  // Verifica ações avançadas primeiro
-  for (const action of ADVANCED_ACTIONS) {
-    const match = lower.match(action.pattern);
-    if (match) {
-      const result = await action.execute(match);
-      if (result.success) {
-        return { type: action.type, action: result.message, label: action.label };
+  // PESQUISA EM PLATAFORMA ESPECÍFICA
+  const platformSearchMatch = lower.match(/(?:pesquisa|busca|procura|search)\s+(.+?)\s+(?:no|em|na)\s+(google|youtube|yt|github|reddit)/i);
+  if (platformSearchMatch) {
+    const query = platformSearchMatch[1].trim();
+    const platform = platformSearchMatch[2].toLowerCase().replace('yt', 'youtube');
+    const urls: Record<string, string> = {
+      google: `https://google.com/search?q=${encodeURIComponent(query)}`,
+      youtube: `https://youtube.com/results?search_query=${encodeURIComponent(query)}`,
+      github: `https://github.com/search?q=${encodeURIComponent(query)}`,
+      reddit: `https://reddit.com/search?q=${encodeURIComponent(query)}`,
+    };
+    const url = urls[platform];
+    if (url) {
+      window.open(url, '_blank');
+      return { type: 'search', action: url, label: `🔍 Pesquisando "${query}" no ${platform}` };
+    }
+  }
+
+  // ABRIR SITE ESPECÍFICO
+  const hasOpenIntent = OPEN_INTENT.test(lower);
+  const hasSearchIntent = SEARCH_INTENT.test(lower);
+
+  // Verifica cada site no dicionário
+  for (const [key, site] of Object.entries(SITES)) {
+    const sitePattern = new RegExp(`\\b${key}\\b`, 'i');
+    if (sitePattern.test(lower)) {
+      if (hasOpenIntent || lower.split(' ').length <= 4) {
+        window.open(site.url, '_blank');
+        return { type: 'url', action: site.url, label: `Abrindo ${site.label}` };
       }
     }
   }
 
-  // Depois verifica URLs simples
-  const intent = /\b(abr[ia]r?|abre|open|acessa|vai|vá|entra|mostra|pesquisa|busca|procura|search|procure|buscar|pesquise)\b/i;
-  const hasActionIntent = intent.test(lower);
-
-  const directAction = ACTIONS.find((action) => action.pattern.test(lower));
-  if (directAction) {
-    const cleaned = lower
-      .replace(directAction.pattern, '')
-      .replace(intent, '')
-      .replace(/\b(o|a|para|no|na|em|para o|para a|por favor)\b/g, '')
-      .trim();
-    const isShortCommand = cleaned.length === 0 || cleaned.split(/\s+/).length <= 2;
-    if (hasActionIntent || isShortCommand) {
-      return { type: 'url', action: directAction.url, label: directAction.label };
+  // PESQUISA GENÉRICA NO GOOGLE
+  if (hasSearchIntent) {
+    const searchMatch = lower.match(/(?:pesquisa|busca|procura|search|googla|busque|pesquise|encontra|acha)\s+(?:sobre\s+)?(.+)/i);
+    if (searchMatch && searchMatch[1]) {
+      const query = searchMatch[1].trim();
+      const url = `https://google.com/search?q=${encodeURIComponent(query)}`;
+      window.open(url, '_blank');
+      return { type: 'search', action: url, label: `🔍 Pesquisando: "${query}"` };
     }
-  }
-
-  if (!hasActionIntent) return null;
-
-  for (const action of ACTIONS) {
-    if (action.pattern.test(lower)) {
-      return { type: 'url', action: action.url, label: action.label };
-    }
-  }
-
-  const searchMatch = lower.match(/\b(?:pesquisa|busca|search|procura|googla|busque|pesquise)\b\s+(.+)/i);
-  if (searchMatch) {
-    const query = encodeURIComponent(searchMatch[1].trim());
-    return { type: 'search', action: `https://google.com/search?q=${query}`, label: `Pesquisando: "${searchMatch[1].trim()}" 🔍` };
-  }
-
-  const ytSearchMatch = lower.match(/\b(?:pesquisa|busca|procura|search|procure|pesquise)\b\s+(.+)\s+no\s+(?:youtube|yt)\b/i)
-    || lower.match(/\b(?:no\s+)?(?:youtube|yt)\b\s+(.+)$/i);
-  if (ytSearchMatch) {
-    const query = encodeURIComponent(ytSearchMatch[1].trim());
-    return { type: 'search', action: `https://youtube.com/results?search_query=${query}`, label: `Pesquisando no YouTube 🎬` };
   }
 
   return null;
@@ -289,11 +172,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const assistantMessage: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: `${actionResult.label}\n\n${
-          typeof actionResult.action === 'string' ? 
-          (actionResult.action.startsWith('http') ? `Abrindo...` : actionResult.action) : 
-          JSON.stringify(actionResult.action)
-        }`,
+        content: actionResult.label,
         createdAt: new Date().toISOString(),
       };
 
@@ -302,13 +181,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
         status: 'idle',
         routingReason: null,
       }));
-
-      if (typeof window !== 'undefined' && actionResult.type === 'url' && typeof actionResult.action === 'string') {
-        const opened = window.open(actionResult.action, '_blank');
-        if (!opened) {
-          window.location.href = actionResult.action;
-        }
-      }
       return;
     }
 

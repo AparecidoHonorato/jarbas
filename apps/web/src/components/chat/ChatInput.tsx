@@ -1,114 +1,196 @@
 'use client';
 
-import { useState, useRef, KeyboardEvent, useEffect } from 'react';
+import { useState, useRef, KeyboardEvent, useEffect, useCallback } from 'react';
 import { useChatStore } from '@/store/chat';
+
+const WAKE_WORDS = ['jarbas', 'jarvas', 'jarbs', 'hey jarbas', 'oi jarbas'];
+const USER_NAME = 'senhor';
 
 export function ChatInput() {
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
+  const [isWakeListening, setIsWakeListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [autoSpeak, setAutoSpeak] = useState(false);
-  const [voiceProfiles, setVoiceProfiles] = useState<Record<string, any>>({});
-  const [currentSpeaker, setCurrentSpeaker] = useState<string | null>(null);
+  const [wakeWordActive, setWakeWordActive] = useState(false);
+  const [attachedImages, setAttachedImages] = useState<string[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<any>(null);
+  const wakeRecognitionRef = useRef<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const isSpeakingRef = useRef(false);
   const sendMessage = useChatStore((s) => s.sendMessage);
   const status = useChatStore((s) => s.status);
   const messages = useChatStore((s) => s.messages);
 
-  // Text-to-speech com ElevenLabs + fallback Web Speech API
-  const speakWithElevenLabs = async (text: string) => {
-    try {
-      setIsSpeaking(true);
+  const stopSpeaking = useCallback(() => {
+    window.speechSynthesis.cancel();
+    setIsSpeaking(false);
+    isSpeakingRef.current = false;
+  }, []);
+
+  const speak = useCallback((text: string): Promise<void> => {
+    return new Promise((resolve) => {
+      window.speechSynthesis.cancel();
+
       const cleanText = text
         .replace(/```[\s\S]*?```/g, 'trecho de código omitido.')
         .replace(/[#*`_~>]/g, '')
-        .slice(0, 500);
+        .slice(0, 800);
 
-      const response = await fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: cleanText }),
-      });
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.lang = 'pt-BR';
+      utterance.rate = 1.0;
+      utterance.pitch = 0.85;
+      utterance.volume = 1;
 
-      if (!response.ok) {
-        console.warn('TTS API failed, using Web Speech API fallback');
-        speakWithWebSpeech(cleanText);
-        return;
+      const voices = window.speechSynthesis.getVoices();
+      const ptVoice = voices.find((v) => v.lang.startsWith('pt'));
+      if (ptVoice) utterance.voice = ptVoice;
+
+      utterance.onstart = () => {
+        setIsSpeaking(true);
+        isSpeakingRef.current = true;
+      };
+      utterance.onend = () => {
+        setIsSpeaking(false);
+        isSpeakingRef.current = false;
+        resolve();
+      };
+      utterance.onerror = () => {
+        setIsSpeaking(false);
+        isSpeakingRef.current = false;
+        resolve();
+      };
+
+      window.speechSynthesis.speak(utterance);
+    });
+  }, []);
+
+  const startCommandListening = useCallback(() => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+
+    const rec = new SR();
+    rec.lang = 'pt-BR';
+    rec.continuous = false;
+    rec.interimResults = false;
+
+    rec.onresult = (e: any) => {
+      // Para de falar quando usuário fala
+      if (isSpeakingRef.current) {
+        window.speechSynthesis.cancel();
+        setIsSpeaking(false);
+        isSpeakingRef.current = false;
+      }
+      const transcript = e.results[0][0].transcript;
+      setIsListening(false);
+      useChatStore.getState().sendMessage(transcript);
+    };
+    rec.onerror = () => setIsListening(false);
+    rec.onend = () => setIsListening(false);
+
+    recognitionRef.current = rec;
+    rec.start();
+    setIsListening(true);
+  }, []);
+
+  const startWakeWordListening = useCallback(() => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+
+    const rec = new SR();
+    rec.lang = 'pt-BR';
+    rec.continuous = true;
+    rec.interimResults = true;
+
+    rec.onresult = (e: any) => {
+      // Para de falar quando usuário fala
+      if (isSpeakingRef.current) {
+        window.speechSynthesis.cancel();
+        setIsSpeaking(false);
+        isSpeakingRef.current = false;
       }
 
-      const audioBlob = await response.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-      audio.playbackRate = 1.1; // Mais natural, como apresentador de TV
-      
-      audio.onended = () => {
-        setIsSpeaking(false);
-        URL.revokeObjectURL(audioUrl);
-      };
-      
-      audio.onerror = (error) => {
-        console.error('Audio playback error:', error);
-        setIsSpeaking(false);
-        URL.revokeObjectURL(audioUrl);
-        speakWithWebSpeech(cleanText);
-      };
-      
-      audio.play().catch((error) => {
-        console.error('Audio play error:', error);
-        setIsSpeaking(false);
-        URL.revokeObjectURL(audioUrl);
-        speakWithWebSpeech(cleanText);
-      });
-    } catch (error) {
-      console.error('ElevenLabs error:', error);
-      setIsSpeaking(false);
-      const cleanText = text
-        .replace(/```[\s\S]*?```/g, 'trecho de código omitido.')
-        .replace(/[#*`_~>]/g, '')
-        .slice(0, 500);
-      speakWithWebSpeech(cleanText);
-    }
-  };
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const transcript = e.results[i][0].transcript.toLowerCase().trim();
+        if (WAKE_WORDS.some((w) => transcript.includes(w))) {
+          rec.stop();
+          setIsWakeListening(false);
+          speak(`Sim, ${USER_NAME}. Como posso ajudar?`).then(() => {
+            startCommandListening();
+          });
+          return;
+        }
+      }
+    };
+    rec.onerror = () => setIsWakeListening(false);
+    rec.onend = () => setIsWakeListening(false);
 
-  // Fallback: Web Speech API
-  const speakWithWebSpeech = (text: string) => {
-    try {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'pt-BR';
-      utterance.rate = 1.2; // Mais rápido e natural
-      utterance.pitch = 1;
-      
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
-      
-      window.speechSynthesis.speak(utterance);
-    } catch (error) {
-      console.error('Web Speech API error:', error);
-      setIsSpeaking(false);
-    }
-  };
+    wakeRecognitionRef.current = rec;
+    rec.start();
+    setIsWakeListening(true);
+  }, [speak, startCommandListening]);
 
+  // Fala resposta do assistente
   useEffect(() => {
-    if (status === 'idle' && messages.length > 0 && autoSpeak) {
+    if (status === 'idle' && messages.length > 0) {
       const last = messages[messages.length - 1];
       if (last.role === 'assistant' && last.content) {
-        speakWithElevenLabs(last.content);
+        speak(last.content).then(() => {
+          if (wakeWordActive) startWakeWordListening();
+        });
       }
     }
-  }, [status, messages, autoSpeak]);
+  }, [status, messages]);
+
+  // Saudação inicial — só após clique do usuário
+  useEffect(() => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+
+    setWakeWordActive(true);
+
+    const handleFirstClick = () => {
+      speak(`JARBAS online, ${USER_NAME}. Todos os sistemas operacionais. Diga meu nome para me ativar.`).then(() => {
+        startWakeWordListening();
+      });
+      document.removeEventListener('click', handleFirstClick);
+    };
+
+    document.addEventListener('click', handleFirstClick);
+
+    return () => {
+      wakeRecognitionRef.current?.stop();
+      document.removeEventListener('click', handleFirstClick);
+    };
+  }, []);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    const names = files.map((f) => f.name);
+    setAttachedImages((prev) => [...prev, ...names]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeImage = (name: string) => {
+    setAttachedImages((prev) => prev.filter((n) => n !== name));
+  };
 
   const handleSubmit = () => {
     const trimmed = input.trim();
-    if (!trimmed || status !== 'idle') return;
+    if (!trimmed && attachedImages.length === 0) return;
+    if (status !== 'idle') return;
     window.speechSynthesis.cancel();
-    sendMessage(trimmed);
+    isSpeakingRef.current = false;
+    setIsSpeaking(false);
+    const fullMessage = attachedImages.length > 0
+      ? `${trimmed} [Imagens anexadas: ${attachedImages.join(', ')}]`
+      : trimmed;
+    sendMessage(fullMessage);
     setInput('');
-    setAutoSpeak(false); // Desativa fala automática quando usuário digita
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-    }
+    setAttachedImages([]);
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
@@ -127,196 +209,132 @@ export function ChatInput() {
   };
 
   const toggleListening = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      alert('Seu browser não suporta reconhecimento de voz. Use Chrome.');
-      return;
-    }
-
     if (isListening) {
       recognitionRef.current?.stop();
       setIsListening(false);
       return;
     }
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'pt-BR';
-    recognition.continuous = false;
-    recognition.interimResults = false;
-
-    recognition.onresult = (e: any) => {
-      const transcript = e.results[0][0].transcript;
-      const confidence = e.results[0][0].confidence;
-
-      // Captura características básicas da voz
-      const voiceData = {
-        pitch: Math.random() * 100, // Simulação - em produção usaria análise real
-        rate: transcript.split(' ').length / (e.resultEnd - e.resultStart) * 1000,
-        volume: Math.random() * 100,
-        confidence
-      };
-
-      // Identifica o speaker
-      const speaker = identifySpeaker(voiceData);
-      setCurrentSpeaker(speaker);
-
-      // Comandos especiais para registrar voz
-      if (transcript.toLowerCase().includes('minha voz é') || transcript.toLowerCase().includes('registre minha voz')) {
-        const nameMatch = transcript.match(/(?:minha voz é|registre minha voz(?: como)?)\s+(.+)/i);
-        if (nameMatch) {
-          const name = nameMatch[1].trim();
-          registerVoice(name, voiceData);
-          setInput(`Voz registrada como "${name}"`);
-          setIsListening(false);
-          return;
-        }
-      }
-
-      setInput(transcript);
-      setIsListening(false);
-      setAutoSpeak(true); // Ativa fala automática quando usuário fala
-    };
-
-    recognition.onerror = () => setIsListening(false);
-    recognition.onend = () => setIsListening(false);
-
-    recognitionRef.current = recognition;
-    recognition.start();
-    setIsListening(true);
+    startCommandListening();
   };
 
-  const stopSpeaking = () => {
-    window.speechSynthesis.cancel();
-    setIsSpeaking(false);
-  };
-
-  const speakLastResponse = () => {
-    const lastAssistantMessage = messages.filter(m => m.role === 'assistant').pop();
-    if (lastAssistantMessage?.content) {
-      speakWithElevenLabs(lastAssistantMessage.content);
+  const toggleWakeWord = () => {
+    if (wakeWordActive) {
+      wakeRecognitionRef.current?.stop();
+      setWakeWordActive(false);
+      setIsWakeListening(false);
+    } else {
+      setWakeWordActive(true);
+      startWakeWordListening();
     }
   };
-
-  // Sistema de identificação de voz
-  const registerVoice = (name: string, audioData: any) => {
-    const voiceProfile = {
-      name,
-      pitch: audioData.pitch || Math.random() * 100, // Simulação
-      rate: audioData.rate || Math.random() * 2,
-      volume: audioData.volume || Math.random() * 100,
-      timestamp: Date.now()
-    };
-    setVoiceProfiles(prev => ({ ...prev, [name]: voiceProfile }));
-    localStorage.setItem('jarbas_voice_profiles', JSON.stringify({ ...voiceProfiles, [name]: voiceProfile }));
-  };
-
-  const identifySpeaker = (audioData: any): string | null => {
-    if (Object.keys(voiceProfiles).length === 0) return null;
-
-    let bestMatch = null;
-    let bestScore = 0;
-
-    Object.entries(voiceProfiles).forEach(([name, profile]: [string, any]) => {
-      let score = 0;
-      const pitchDiff = Math.abs((profile.pitch || 50) - (audioData.pitch || 50));
-      const rateDiff = Math.abs((profile.rate || 1) - (audioData.rate || 1));
-      const volumeDiff = Math.abs((profile.volume || 50) - (audioData.volume || 50));
-
-      // Calcula similaridade (menor diferença = maior score)
-      score = 100 - (pitchDiff + rateDiff * 50 + volumeDiff);
-
-      if (score > bestScore && score > 60) { // Threshold de 60%
-        bestMatch = name;
-        bestScore = score;
-      }
-    });
-
-    return bestMatch;
-  };
-
-  // Carrega perfis salvos
-  useEffect(() => {
-    const saved = localStorage.getItem('jarbas_voice_profiles');
-    if (saved) {
-      setVoiceProfiles(JSON.parse(saved));
-    }
-  }, []);
 
   return (
-    <div className="flex items-end gap-3">
-      <div className="flex-1 relative">
-        <textarea
-          ref={textareaRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onInput={handleInput}
-          placeholder={isListening ? `🎤 Ouvindo${currentSpeaker ? ` (${currentSpeaker})` : ''}...` : status === 'idle' ? 'Fale com o JARBAS...' : 'Processando...'}
-          rows={1}
-          className="w-full bg-transparent border border-white/10 rounded-lg px-4 py-3 pr-12 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-jarbas-primary/40 resize-none font-mono transition-colors"
-          disabled={status !== 'idle'}
-        />
-        {status !== 'idle' && (
-          <div className="absolute right-3 top-1/2 -translate-y-1/2">
-            <div className="w-4 h-4 border-2 border-jarbas-primary/40 border-t-jarbas-primary rounded-full animate-spin" />
-          </div>
+    <div className="flex flex-col gap-2">
+      {/* Status bar */}
+      <div className="flex items-center gap-3 px-1">
+        <button
+          onClick={toggleWakeWord}
+          className={`flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider transition-all ${
+            wakeWordActive ? 'text-jarbas-primary' : 'text-white/20 hover:text-white/40'
+          }`}
+        >
+          <span className={`w-1.5 h-1.5 rounded-full ${wakeWordActive ? 'bg-jarbas-primary animate-pulse' : 'bg-white/20'}`} />
+          {wakeWordActive ? (isWakeListening ? 'Ouvindo wake word...' : 'Wake word ativo') : 'Wake word desativado'}
+        </button>
+
+        {isListening && (
+          <span className="text-[10px] font-mono text-red-400 animate-pulse">🎤 Ouvindo comando...</span>
+        )}
+
+        {isSpeaking && (
+          <button onClick={stopSpeaking} className="text-[10px] font-mono text-jarbas-accent animate-pulse hover:text-white transition-colors">
+            🔊 Falando... (clique para parar)
+          </button>
         )}
       </div>
 
-      {/* Botão toggle fala automática */}
-      <button
-        onClick={() => setAutoSpeak(!autoSpeak)}
-        className={`px-3 py-3 rounded-lg border text-sm font-mono transition-all ${
-          autoSpeak
-            ? 'bg-green-500/20 border-green-500/50 text-green-400'
-            : 'bg-white/5 border-white/10 text-white/40 hover:text-white/70 hover:border-white/20'
-        }`}
-        title={autoSpeak ? 'Fala automática ativada' : 'Fala automática desativada'}
-      >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-        </svg>
-      </button>
+      {/* Imagens anexadas */}
+      {attachedImages.length > 0 && (
+        <div className="flex flex-wrap gap-2 px-1">
+          {attachedImages.map((name) => (
+            <div key={name} className="flex items-center gap-1 px-2 py-1 bg-jarbas-primary/10 border border-jarbas-primary/20 rounded text-[10px] font-mono text-jarbas-primary">
+              <span>🖼️ {name}</span>
+              <button onClick={() => removeImage(name)} className="text-white/40 hover:text-white ml-1">×</button>
+            </div>
+          ))}
+        </div>
+      )}
 
-      {/* Botão de voz */}
-      <button
-        onClick={isSpeaking ? stopSpeaking : isListening ? toggleListening : speakLastResponse}
-        disabled={status !== 'idle'}
-        className={`px-4 py-3 rounded-lg border text-sm font-mono transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
-          isListening
-            ? 'bg-red-500/20 border-red-500/50 text-red-400 animate-pulse'
-            : isSpeaking
-            ? 'bg-jarbas-accent/20 border-jarbas-accent/50 text-jarbas-accent animate-pulse'
-            : 'bg-white/5 border-white/10 text-white/40 hover:text-white/70 hover:border-white/20'
-        }`}
-        title={isListening ? 'Parar gravação' : isSpeaking ? 'Parar fala' : 'Ouvir resposta'}
-      >
-        {isListening ? (
-          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-            <rect x="6" y="6" width="12" height="12" rx="2" />
-          </svg>
-        ) : isSpeaking ? (
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.536 8.464a5 5 0 010 7.072M12 6v12m-3.536-9.536a5 5 0 000 7.072" />
-          </svg>
-        ) : (
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.536 8.464a5 5 0 010 7.072m0 0a5 5 0 01-7.072 0M12 6v12m-3.536-9.536a5 5 0 000 7.072" />
-          </svg>
-        )}
-      </button>
+      {/* Input row */}
+      <div className="flex items-end gap-3">
+        <div className="flex-1 relative">
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onInput={handleInput}
+            placeholder={
+              isListening ? '🎤 Ouvindo...' :
+              status !== 'idle' ? 'Processando...' :
+              'Fale com o JARBAS... (ou diga "JARBAS")'
+            }
+            rows={1}
+            className="w-full bg-transparent border border-white/10 rounded-lg px-4 py-3 pr-12 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-jarbas-primary/40 resize-none font-mono transition-colors"
+            disabled={status !== 'idle'}
+          />
+          {status !== 'idle' && (
+            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              <div className="w-4 h-4 border-2 border-jarbas-primary/40 border-t-jarbas-primary rounded-full animate-spin" />
+            </div>
+          )}
+        </div>
 
-      {/* Botão enviar */}
-      <button
-        onClick={handleSubmit}
-        disabled={!input.trim() || status !== 'idle'}
-        className="px-5 py-3 rounded-lg bg-jarbas-primary/10 border border-jarbas-primary/30 text-jarbas-primary text-sm font-mono uppercase tracking-wider hover:bg-jarbas-primary/20 hover:shadow-neon disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-      >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-        </svg>
-      </button>
+        {/* Botão anexar foto */}
+        <label className="px-4 py-3 rounded-lg border bg-white/5 border-white/10 text-white/40 hover:text-white/70 hover:border-white/20 cursor-pointer transition-all">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={handleFileChange}
+          />
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        </label>
+
+        {/* Botão microfone */}
+        <button
+          onClick={isSpeaking ? stopSpeaking : toggleListening}
+          disabled={status !== 'idle'}
+          className={`px-4 py-3 rounded-lg border text-sm font-mono transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
+            isListening ? 'bg-red-500/20 border-red-500/50 text-red-400 animate-pulse' :
+            isSpeaking ? 'bg-jarbas-accent/20 border-jarbas-accent/50 text-jarbas-accent animate-pulse' :
+            'bg-white/5 border-white/10 text-white/40 hover:text-white/70 hover:border-white/20'
+          }`}
+        >
+          {isListening ? (
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
+          ) : (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
+            </svg>
+          )}
+        </button>
+
+        {/* Botão enviar */}
+        <button
+          onClick={handleSubmit}
+          disabled={(!input.trim() && attachedImages.length === 0) || status !== 'idle'}
+          className="px-5 py-3 rounded-lg bg-jarbas-primary/10 border border-jarbas-primary/30 text-jarbas-primary text-sm font-mono uppercase tracking-wider hover:bg-jarbas-primary/20 hover:shadow-neon disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+          </svg>
+        </button>
+      </div>
     </div>
   );
 }

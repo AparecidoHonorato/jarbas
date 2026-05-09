@@ -1,9 +1,9 @@
-import type { ProviderName, ProviderCapability } from '@jarbas/types';
+import type { ProviderCapability } from '@jarbas/types';
 
 export interface AIProvider {
-  name: ProviderName;
+  name: string;
   isAvailable(): boolean;
   getCapabilities(): ProviderCapability;
-  streamText(message: string, model: string): AsyncGenerator<string>;
-  generateText(message: string, model: string): Promise<string>;
+  streamText(message: string, model: string, history?: Array<{ role: string; content: string }>): AsyncGenerator<string>;
+  generateText(message: string, model: string, history?: Array<{ role: string; content: string }>): Promise<string>;
 }

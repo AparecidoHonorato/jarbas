@@ -14,11 +14,10 @@ export class ChatService {
     message: string,
     preferredProvider?: string,
     preferredModel?: string,
+    history: Array<{ role: string; content: string }> = [],
   ): AsyncGenerator<ChatStreamEvent> {
-    // Route to best provider
     const decision = this.routing.route(message, preferredProvider, preferredModel);
 
-    // Emit metadata first
     yield {
       type: 'metadata',
       data: '',
@@ -29,7 +28,6 @@ export class ChatService {
       },
     };
 
-    // Get provider and stream
     const provider = this.providers.get(decision.provider);
 
     if (!provider) {
@@ -38,13 +36,12 @@ export class ChatService {
     }
 
     try {
-      const stream = provider.streamText(message, decision.model);
+      const stream = provider.streamText(message, decision.model, history);
       for await (const token of stream) {
         yield { type: 'token', data: token };
       }
       yield { type: 'done', data: '' };
     } catch (error) {
-      // Try fallback
       if (decision.fallback) {
         const fallbackProvider = this.providers.get(decision.fallback.provider);
         if (fallbackProvider) {
@@ -58,7 +55,11 @@ export class ChatService {
             },
           };
 
-          const fallbackStream = fallbackProvider.streamText(message, decision.fallback.model);
+          const fallbackStream = fallbackProvider.streamText(
+            message,
+            decision.fallback.model,
+            history,
+          );
           for await (const token of fallbackStream) {
             yield { type: 'token', data: token };
           }
