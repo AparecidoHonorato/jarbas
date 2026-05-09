@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-primary: 0 212 255;
+    --color-secondary: 0 102 255;
+    --color-accent: 0 255 204;
+  }
+
+  body {
+    background: radial-gradient(ellipse at 50% 0%, rgba(0, 102, 255, 0.08) 0%, transparent 60%),
+      #060810;
+  }
+
+  ::selection {
+    background: rgba(0, 212, 255, 0.3);
+  }
+
+  ::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(0, 212, 255, 0.3);
+    border-radius: 2px;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply bg-jarbas-glass backdrop-blur-xl border border-white/5 rounded-lg;
+  }
+
+  .neon-border {
+    @apply border border-jarbas-primary/20;
+    box-shadow: inset 0 0 20px rgba(0, 212, 255, 0.03);
+  }
+
+  .neon-text {
+    @apply text-jarbas-primary;
+    text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+  }
+
+  .hud-grid {
+    background-image:
+      linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+}
