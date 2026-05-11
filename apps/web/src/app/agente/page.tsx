@@ -19,22 +19,6 @@ const CV_PROFILE = {
   pcd: true,
 };
 
-const COVER_LETTER_BASE = `Prezado(a) recrutador(a),
-
-Meu nome é Aparecido Gomes da Silva Junior e tenho interesse na vaga de {VAGA} em {EMPRESA}.
-
-Sou QA Pleno com mais de 6 anos de experiência em ambientes de produção e times ágeis, com foco em testes funcionais, regressivos e end-to-end. Tenho vivência com SQL Server, Linux, Azure e metodologias ágeis (Scrum), além de conhecimentos em JavaScript, C# e Python.
-
-Atualmente atuo em e-commerce com validação de fluxos críticos, análise de requisitos e colaboração direta com times de desenvolvimento para prevenção de bugs em produção.
-
-Sou PCD (paralisia cerebral), e essa trajetória me forjou com resiliência, disciplina e foco em soluções — qualidades que levo para cada projeto em que atuo.
-
-Acredito que meu perfil tem muito a contribuir com a {EMPRESA} e fico à disposição para uma conversa.
-
-Atenciosamente,
-Aparecido Gomes da Silva Junior
-aparecidogomes1003@gmail.com | +55 41 99531-8466`;
-
 interface Job {
   id: string;
   title: string;
@@ -48,6 +32,8 @@ interface Job {
 }
 
 type TabType = 'buscar' | 'carta' | 'perfil';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 export default function AgentePage() {
   const [tab, setTab] = useState<TabType>('buscar');
@@ -64,45 +50,17 @@ export default function AgentePage() {
     setLoading(true);
     setSearchDone(false);
     setJobs([]);
-
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch(`${API_URL}/jobs/search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages: [{
-            role: 'user',
-            content: `Gere uma lista de 6 vagas REALISTAS e VARIADAS de "${keyword}" no Brasil para um profissional QA Pleno com 6 anos de experiência, SQL Server, Azure, Scrum, JavaScript, C#, Python. 
-              
-Responda APENAS com JSON válido, sem markdown, sem explicações:
-[
-  {
-    "id": "1",
-    "title": "título da vaga",
-    "company": "nome da empresa",
-    "location": "cidade ou Remoto",
-    "type": "CLT ou PJ",
-    "url": "https://linkedin.com/jobs/view/123456",
-    "match": número de 70 a 98,
-    "tags": ["tag1","tag2","tag3"],
-    "posted": "há X dias"
-  }
-]`
-          }]
-        })
+        body: JSON.stringify({ keyword }),
       });
-
       const data = await response.json();
-      const text = data.content?.find((b: { type: string }) => b.type === 'text')?.text || '[]';
-      const clean = text.replace(/```json|```/g, '').trim();
-      const parsed: Job[] = JSON.parse(clean);
-      setJobs(parsed);
+      setJobs(data);
     } catch {
       setJobs([]);
     }
-
     setLoading(false);
     setSearchDone(true);
   };
@@ -112,35 +70,17 @@ Responda APENAS com JSON válido, sem markdown, sem explicações:
     setCartaLoading(true);
     setTab('carta');
     setCarta('');
-
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch(`${API_URL}/jobs/cover-letter`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages: [{
-            role: 'user',
-            content: `Escreva uma carta de apresentação profissional em português brasileiro para:
-Candidato: Aparecido Gomes da Silva Junior
-Vaga: ${job.title}
-Empresa: ${job.company}
-Perfil: QA Pleno, 6 anos, SQL Server, Azure, Linux, Scrum, JavaScript, C#, Python. PCD (paralisia cerebral).
-Carta base para adaptar: ${COVER_LETTER_BASE.replace('{VAGA}', job.title).replace(/\{EMPRESA\}/g, job.company)}
-
-Melhore e personalize a carta para a vaga e empresa específica. Responda apenas com o texto da carta, sem explicações.`
-          }]
-        })
+        body: JSON.stringify({ jobTitle: job.title, company: job.company }),
       });
-
       const data = await response.json();
-      const text = data.content?.find((b: { type: string }) => b.type === 'text')?.text || '';
-      setCarta(text);
+      setCarta(data.letter);
     } catch {
       setCarta('Erro ao gerar carta. Tente novamente.');
     }
-
     setCartaLoading(false);
   };
 
@@ -158,14 +98,11 @@ Melhore e personalize a carta para a vaga e empresa específica. Responda apenas
 
   return (
     <div className="fixed inset-0 bg-[#020617] text-white flex flex-col font-mono overflow-hidden">
-
-      {/* BG */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute inset-0 opacity-[0.05] bg-[linear-gradient(rgba(0,255,255,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(0,255,255,0.2)_1px,transparent_1px)] bg-[size:40px_40px]" />
         <div className="absolute left-1/2 top-1/3 w-[600px] h-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-400/8 blur-[150px]" />
       </div>
 
-      {/* HEADER */}
       <div className="relative z-10 flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-cyan-400/15 bg-black/40 backdrop-blur-sm">
         <div className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-cyan-400/30 bg-cyan-400/10">
@@ -184,7 +121,6 @@ Melhore e personalize a carta para a vaga e empresa específica. Responda apenas
         </div>
       </div>
 
-      {/* TABS */}
       <div className="relative z-10 flex-shrink-0 flex border-b border-cyan-400/10 bg-black/20">
         {([
           { id: 'buscar', label: 'BUSCAR VAGAS', icon: '🔍' },
@@ -195,9 +131,7 @@ Melhore e personalize a carta para a vaga e empresa específica. Responda apenas
             key={t.id}
             onClick={() => setTab(t.id)}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[9px] tracking-[0.15em] transition-all ${
-              tab === t.id
-                ? 'text-cyan-300 border-b-2 border-cyan-400 bg-cyan-400/5'
-                : 'text-white/30 hover:text-white/50'
+              tab === t.id ? 'text-cyan-300 border-b-2 border-cyan-400 bg-cyan-400/5' : 'text-white/30 hover:text-white/50'
             }`}
           >
             <span>{t.icon}</span>
@@ -206,13 +140,10 @@ Melhore e personalize a carta para a vaga e empresa específica. Responda apenas
         ))}
       </div>
 
-      {/* CONTENT */}
       <div className="relative z-10 flex-1 min-h-0 overflow-y-auto">
 
-        {/* ===== TAB: BUSCAR ===== */}
         {tab === 'buscar' && (
           <div className="p-4 space-y-4">
-            {/* Search bar */}
             <div className="flex gap-2">
               <input
                 value={keyword}
@@ -221,41 +152,24 @@ Melhore e personalize a carta para a vaga e empresa específica. Responda apenas
                 placeholder="Ex: QA, Analista de Testes..."
                 className="flex-1 bg-white/5 border border-cyan-400/20 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-cyan-400/50"
               />
-              <button
-                onClick={searchJobs}
-                disabled={loading}
-                className="px-4 py-2.5 rounded-lg bg-cyan-400/15 border border-cyan-400/30 text-cyan-300 text-[10px] tracking-[0.15em] hover:bg-cyan-400/25 disabled:opacity-50 transition-all"
-              >
+              <button onClick={searchJobs} disabled={loading} className="px-4 py-2.5 rounded-lg bg-cyan-400/15 border border-cyan-400/30 text-cyan-300 text-[10px] tracking-[0.15em] hover:bg-cyan-400/25 disabled:opacity-50 transition-all">
                 {loading ? '...' : 'BUSCAR'}
               </button>
             </div>
 
-            {/* Filtros rápidos */}
             <div className="flex flex-wrap gap-2">
               {['QA Pleno', 'Analista de Testes', 'SDET', 'Quality Engineer', 'QA Automation'].map((f) => (
-                <button
-                  key={f}
-                  onClick={() => { setKeyword(f); }}
-                  className="text-[9px] px-2.5 py-1 rounded-full border border-cyan-400/15 text-cyan-200/50 hover:border-cyan-400/40 hover:text-cyan-200 transition-all"
-                >
-                  {f}
-                </button>
+                <button key={f} onClick={() => setKeyword(f)} className="text-[9px] px-2.5 py-1 rounded-full border border-cyan-400/15 text-cyan-200/50 hover:border-cyan-400/40 hover:text-cyan-200 transition-all">{f}</button>
               ))}
             </div>
 
-            {/* Loading */}
             {loading && (
               <div className="flex flex-col items-center justify-center py-12 gap-3">
-                <div className="flex gap-1">
-                  {[0, 150, 300].map((d) => (
-                    <span key={d} className="w-2 h-2 rounded-full bg-cyan-400/60 animate-bounce" style={{ animationDelay: `${d}ms` }} />
-                  ))}
-                </div>
+                <div className="flex gap-1">{[0,150,300].map((d) => <span key={d} className="w-2 h-2 rounded-full bg-cyan-400/60 animate-bounce" style={{animationDelay:`${d}ms`}} />)}</div>
                 <p className="text-[10px] text-cyan-200/40 tracking-widest">ANALISANDO VAGAS...</p>
               </div>
             )}
 
-            {/* Jobs list */}
             {!loading && jobs.length > 0 && (
               <div className="space-y-3">
                 <p className="text-[9px] text-cyan-200/40 tracking-widest">{jobs.length} VAGAS ENCONTRADAS</p>
@@ -266,45 +180,25 @@ Melhore e personalize a carta para a vaga e empresa específica. Responda apenas
                         <h3 className="text-xs font-bold text-white tracking-wide leading-tight">{job.title}</h3>
                         <p className="text-[10px] text-cyan-200/60 mt-0.5">{job.company}</p>
                       </div>
-                      <span className={`flex-shrink-0 text-[10px] font-black px-2 py-0.5 rounded-full border ${matchColor(job.match)}`}>
-                        {job.match}%
-                      </span>
+                      <span className={`flex-shrink-0 text-[10px] font-black px-2 py-0.5 rounded-full border ${matchColor(job.match)}`}>{job.match}%</span>
                     </div>
-
                     <div className="flex flex-wrap gap-1.5">
                       <span className="text-[9px] px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/40">📍 {job.location}</span>
                       <span className="text-[9px] px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/40">💼 {job.type}</span>
                       <span className="text-[9px] px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/40">🕐 {job.posted}</span>
                     </div>
-
                     <div className="flex flex-wrap gap-1">
-                      {job.tags.map((tag) => (
-                        <span key={tag} className="text-[8px] px-1.5 py-0.5 rounded bg-cyan-400/8 border border-cyan-400/15 text-cyan-300/70">{tag}</span>
-                      ))}
+                      {job.tags.map((tag) => <span key={tag} className="text-[8px] px-1.5 py-0.5 rounded bg-cyan-400/8 border border-cyan-400/15 text-cyan-300/70">{tag}</span>)}
                     </div>
-
                     <div className="flex gap-2 pt-1">
-                      <button
-                        onClick={() => generateCarta(job)}
-                        className="flex-1 py-2 rounded-lg bg-cyan-400/10 border border-cyan-400/25 text-cyan-300 text-[9px] tracking-[0.15em] hover:bg-cyan-400/20 transition-all"
-                      >
-                        ✉️ GERAR CARTA
-                      </button>
-                      <a
-                        href={job.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-1 py-2 rounded-lg bg-white/5 border border-white/10 text-white/50 text-[9px] tracking-[0.15em] hover:bg-white/10 transition-all text-center"
-                      >
-                        🔗 VER VAGA
-                      </a>
+                      <button onClick={() => generateCarta(job)} className="flex-1 py-2 rounded-lg bg-cyan-400/10 border border-cyan-400/25 text-cyan-300 text-[9px] tracking-[0.15em] hover:bg-cyan-400/20 transition-all">✉️ GERAR CARTA</button>
+                      <a href={job.url} target="_blank" rel="noopener noreferrer" className="flex-1 py-2 rounded-lg bg-white/5 border border-white/10 text-white/50 text-[9px] tracking-[0.15em] hover:bg-white/10 transition-all text-center">🔗 VER VAGA</a>
                     </div>
                   </div>
                 ))}
               </div>
             )}
 
-            {/* Empty state */}
             {!loading && searchDone && jobs.length === 0 && (
               <div className="text-center py-12">
                 <p className="text-white/20 text-xs tracking-widest">NENHUMA VAGA ENCONTRADA</p>
@@ -312,7 +206,6 @@ Melhore e personalize a carta para a vaga e empresa específica. Responda apenas
               </div>
             )}
 
-            {/* Initial state */}
             {!loading && !searchDone && (
               <div className="text-center py-10 space-y-2">
                 <div className="text-4xl">🎯</div>
@@ -323,7 +216,6 @@ Melhore e personalize a carta para a vaga e empresa específica. Responda apenas
           </div>
         )}
 
-        {/* ===== TAB: CARTA ===== */}
         {tab === 'carta' && (
           <div className="p-4 space-y-4">
             {selectedJob ? (
@@ -333,14 +225,9 @@ Melhore e personalize a carta para a vaga e empresa específica. Responda apenas
                   <p className="text-xs font-bold text-cyan-200">{selectedJob.title}</p>
                   <p className="text-[10px] text-cyan-200/60">{selectedJob.company}</p>
                 </div>
-
                 {cartaLoading ? (
                   <div className="flex flex-col items-center justify-center py-12 gap-3">
-                    <div className="flex gap-1">
-                      {[0, 150, 300].map((d) => (
-                        <span key={d} className="w-2 h-2 rounded-full bg-cyan-400/60 animate-bounce" style={{ animationDelay: `${d}ms` }} />
-                      ))}
-                    </div>
+                    <div className="flex gap-1">{[0,150,300].map((d) => <span key={d} className="w-2 h-2 rounded-full bg-cyan-400/60 animate-bounce" style={{animationDelay:`${d}ms`}} />)}</div>
                     <p className="text-[10px] text-cyan-200/40 tracking-widest">GERANDO CARTA PERSONALIZADA...</p>
                   </div>
                 ) : carta ? (
@@ -349,18 +236,10 @@ Melhore e personalize a carta para a vaga e empresa específica. Responda apenas
                       <pre className="text-[11px] text-white/80 whitespace-pre-wrap font-mono leading-relaxed">{carta}</pre>
                     </div>
                     <div className="flex gap-2">
-                      <button
-                        onClick={copyCarta}
-                        className="flex-1 py-2.5 rounded-lg bg-cyan-400/15 border border-cyan-400/30 text-cyan-300 text-[9px] tracking-[0.15em] hover:bg-cyan-400/25 transition-all"
-                      >
+                      <button onClick={copyCarta} className="flex-1 py-2.5 rounded-lg bg-cyan-400/15 border border-cyan-400/30 text-cyan-300 text-[9px] tracking-[0.15em] hover:bg-cyan-400/25 transition-all">
                         {copied ? '✅ COPIADO!' : '📋 COPIAR CARTA'}
                       </button>
-                      <button
-                        onClick={() => generateCarta(selectedJob)}
-                        className="px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white/40 text-[9px] tracking-[0.15em] hover:bg-white/10 transition-all"
-                      >
-                        🔄
-                      </button>
+                      <button onClick={() => generateCarta(selectedJob)} className="px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white/40 text-[9px] tracking-[0.15em] hover:bg-white/10 transition-all">🔄</button>
                     </div>
                   </>
                 ) : null}
@@ -370,48 +249,31 @@ Melhore e personalize a carta para a vaga e empresa específica. Responda apenas
                 <div className="text-4xl">✉️</div>
                 <p className="text-white/20 text-xs tracking-widest">NENHUMA VAGA SELECIONADA</p>
                 <p className="text-white/10 text-[10px]">Busque vagas e clique em "Gerar Carta"</p>
-                <button
-                  onClick={() => setTab('buscar')}
-                  className="mt-4 px-4 py-2 rounded-lg bg-cyan-400/10 border border-cyan-400/20 text-cyan-300 text-[9px] tracking-widest"
-                >
-                  IR PARA BUSCA
-                </button>
+                <button onClick={() => setTab('buscar')} className="mt-4 px-4 py-2 rounded-lg bg-cyan-400/10 border border-cyan-400/20 text-cyan-300 text-[9px] tracking-widest">IR PARA BUSCA</button>
               </div>
             )}
           </div>
         )}
 
-        {/* ===== TAB: PERFIL ===== */}
         {tab === 'perfil' && (
           <div className="p-4 space-y-4">
-            {/* Header */}
             <div className="rounded-xl border border-cyan-400/15 bg-cyan-400/5 p-4 space-y-1">
               <h2 className="text-sm font-black text-cyan-200 tracking-wide">{CV_PROFILE.name}</h2>
               <p className="text-[10px] text-cyan-300/70">{CV_PROFILE.title}</p>
               <p className="text-[9px] text-white/40">📍 {CV_PROFILE.location}</p>
               <p className="text-[9px] text-white/40">✉️ {CV_PROFILE.email}</p>
-              {CV_PROFILE.pcd && (
-                <span className="inline-block text-[8px] px-2 py-0.5 rounded-full bg-purple-400/10 border border-purple-400/20 text-purple-300 mt-1">PCD ♿</span>
-              )}
+              {CV_PROFILE.pcd && <span className="inline-block text-[8px] px-2 py-0.5 rounded-full bg-purple-400/10 border border-purple-400/20 text-purple-300 mt-1">PCD ♿</span>}
             </div>
-
-            {/* Resumo */}
             <div className="space-y-2">
               <p className="text-[9px] text-cyan-200/40 tracking-widest">RESUMO</p>
               <p className="text-[11px] text-white/60 leading-relaxed">{CV_PROFILE.summary}</p>
             </div>
-
-            {/* Skills */}
             <div className="space-y-2">
               <p className="text-[9px] text-cyan-200/40 tracking-widest">HABILIDADES</p>
               <div className="flex flex-wrap gap-1.5">
-                {CV_PROFILE.skills.map((s) => (
-                  <span key={s} className="text-[9px] px-2 py-0.5 rounded-full bg-cyan-400/8 border border-cyan-400/15 text-cyan-300/80">{s}</span>
-                ))}
+                {CV_PROFILE.skills.map((s) => <span key={s} className="text-[9px] px-2 py-0.5 rounded-full bg-cyan-400/8 border border-cyan-400/15 text-cyan-300/80">{s}</span>)}
               </div>
             </div>
-
-            {/* Experiência */}
             <div className="space-y-2">
               <p className="text-[9px] text-cyan-200/40 tracking-widest">EXPERIÊNCIA</p>
               <div className="space-y-3">
@@ -424,17 +286,12 @@ Melhore e personalize a carta para a vaga e empresa específica. Responda apenas
                 ))}
               </div>
             </div>
-
-            {/* Certificações */}
             <div className="space-y-2">
               <p className="text-[9px] text-cyan-200/40 tracking-widest">CERTIFICAÇÕES</p>
               <div className="space-y-1">
-                {CV_PROFILE.certifications.map((c) => (
-                  <p key={c} className="text-[10px] text-white/40">• {c}</p>
-                ))}
+                {CV_PROFILE.certifications.map((c) => <p key={c} className="text-[10px] text-white/40">• {c}</p>)}
               </div>
             </div>
-
             <div className="h-4" />
           </div>
         )}
