@@ -1,5 +1,5 @@
 'use client';
-
+ 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useChatStore } from '@/store/chat';
 import { ChatMessage } from './ChatMessage';
@@ -7,24 +7,25 @@ import { ChatInput } from './ChatInput';
 import { ProviderSelector } from './ProviderSelector';
 import { RoutingBadge } from './RoutingBadge';
 import { useRef, useEffect } from 'react';
-
+ 
 export function ChatPanel() {
   const messages = useChatStore((s) => s.messages);
   const status = useChatStore((s) => s.status);
   const clearChat = useChatStore((s) => s.clearChat);
-const sendMessage = useChatStore((s) => s.sendMessage);
+  const sendMessage = useChatStore((s) => s.sendMessage);
   const scrollRef = useRef<HTMLDivElement>(null);
-
+ 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
-
+ 
   return (
-    <div className="flex flex-col h-full glass-panel neon-border">
-      {/* Header with controls */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/5">
+    <div className="flex flex-col h-full">
+ 
+      {/* Provider selector */}
+      <div className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-white/5">
         <ProviderSelector />
         <div className="flex items-center gap-2">
           <RoutingBadge />
@@ -38,9 +39,9 @@ const sendMessage = useChatStore((s) => s.sendMessage);
           )}
         </div>
       </div>
-
-      {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+ 
+      {/* Messages — flex-1 + min-h-0 para não empurrar o input */}
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
         <AnimatePresence initial={false}>
           {messages.length === 0 ? (
             <motion.div
@@ -80,7 +81,7 @@ const sendMessage = useChatStore((s) => s.sendMessage);
             ))
           )}
         </AnimatePresence>
-
+ 
         {/* Thinking indicator */}
         {status === 'thinking' && (
           <motion.div
@@ -97,11 +98,13 @@ const sendMessage = useChatStore((s) => s.sendMessage);
           </motion.div>
         )}
       </div>
-
-      {/* Input */}
-      <div className="border-t border-white/5 p-4">
+ 
+      {/* Input — sempre fixo no fundo */}
+      <div className="flex-shrink-0 border-t border-white/5 p-3">
         <ChatInput />
       </div>
+ 
     </div>
   );
 }
+ 

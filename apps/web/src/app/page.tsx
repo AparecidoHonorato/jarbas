@@ -1,12 +1,12 @@
 import { HudLayout } from '@/components/hud/HudLayout';
 import { ChatPanel } from '@/components/chat/ChatPanel';
 import { SystemStatusBar } from '@/components/hud/SystemStatusBar';
-
+ 
 export default function Home() {
   return (
     <HudLayout>
       <div className="fixed inset-0 bg-[#020617] text-white flex flex-col">
-
+ 
         {/* BACKGROUND */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute inset-0 opacity-[0.06]">
@@ -15,7 +15,7 @@ export default function Home() {
           <div className="absolute left-1/2 top-1/2 w-[800px] h-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-400/10 blur-[180px]" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_30%,rgba(0,0,0,0.96)_100%)]" />
         </div>
-
+ 
         {/* HUD CORNERS */}
         <div className="fixed top-3 left-3 z-50 w-10 h-10 border-l border-t border-cyan-400/40 pointer-events-none">
           <div className="absolute left-0 top-0 h-[2px] w-5 bg-cyan-400 shadow-[0_0_8px_rgba(0,255,255,1)]" />
@@ -29,12 +29,12 @@ export default function Home() {
         <div className="fixed bottom-3 right-3 z-50 w-10 h-10 border-r border-b border-cyan-400/40 pointer-events-none">
           <div className="absolute right-0 bottom-0 h-[2px] w-5 bg-cyan-400 shadow-[0_0_8px_rgba(0,255,255,1)]" />
         </div>
-
+ 
         {/* STATUS BAR */}
         <div className="relative z-20 flex-shrink-0">
           <SystemStatusBar />
         </div>
-
+ 
         {/* HEADER COMPACTO */}
         <div className="relative z-10 flex-shrink-0 flex items-center justify-between px-4 py-2 border-b border-cyan-400/10 bg-black/30 backdrop-blur-sm">
           <div className="flex items-center gap-3">
@@ -54,7 +54,7 @@ export default function Home() {
               </p>
             </div>
           </div>
-
+ 
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5">
               <div className="relative h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(0,255,120,1)]">
@@ -74,13 +74,14 @@ export default function Home() {
             </a>
           </div>
         </div>
-
+ 
         {/* CHAT — flex-1 + min-h-0 para ocupar espaço restante sem overflow */}
         <div className="relative z-10 flex-1 min-h-0">
           <ChatPanel />
         </div>
-
+ 
       </div>
     </HudLayout>
   );
 }
+ 
