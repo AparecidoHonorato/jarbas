@@ -5,7 +5,7 @@ import { SystemStatusBar } from '@/components/hud/SystemStatusBar';
 export default function Home() {
   return (
     <HudLayout>
-      <div className="relative h-screen overflow-hidden bg-[#020617] text-white flex flex-col">
+      <div className="fixed inset-0 bg-[#020617] text-white flex flex-col">
 
         {/* BACKGROUND */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -16,18 +16,18 @@ export default function Home() {
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_30%,rgba(0,0,0,0.96)_100%)]" />
         </div>
 
-        {/* HUD CORNERS - menores no mobile */}
-        <div className="fixed top-3 left-3 z-50 w-12 h-12 border-l border-t border-cyan-400/40 pointer-events-none">
-          <div className="absolute left-0 top-0 h-[2px] w-6 bg-cyan-400 shadow-[0_0_10px_rgba(0,255,255,1)]" />
+        {/* HUD CORNERS */}
+        <div className="fixed top-3 left-3 z-50 w-10 h-10 border-l border-t border-cyan-400/40 pointer-events-none">
+          <div className="absolute left-0 top-0 h-[2px] w-5 bg-cyan-400 shadow-[0_0_8px_rgba(0,255,255,1)]" />
         </div>
-        <div className="fixed top-3 right-3 z-50 w-12 h-12 border-r border-t border-cyan-400/40 pointer-events-none">
-          <div className="absolute right-0 top-0 h-[2px] w-6 bg-cyan-400 shadow-[0_0_10px_rgba(0,255,255,1)]" />
+        <div className="fixed top-3 right-3 z-50 w-10 h-10 border-r border-t border-cyan-400/40 pointer-events-none">
+          <div className="absolute right-0 top-0 h-[2px] w-5 bg-cyan-400 shadow-[0_0_8px_rgba(0,255,255,1)]" />
         </div>
-        <div className="fixed bottom-3 left-3 z-50 w-12 h-12 border-l border-b border-cyan-400/40 pointer-events-none">
-          <div className="absolute left-0 bottom-0 h-[2px] w-6 bg-cyan-400 shadow-[0_0_10px_rgba(0,255,255,1)]" />
+        <div className="fixed bottom-3 left-3 z-50 w-10 h-10 border-l border-b border-cyan-400/40 pointer-events-none">
+          <div className="absolute left-0 bottom-0 h-[2px] w-5 bg-cyan-400 shadow-[0_0_8px_rgba(0,255,255,1)]" />
         </div>
-        <div className="fixed bottom-3 right-3 z-50 w-12 h-12 border-r border-b border-cyan-400/40 pointer-events-none">
-          <div className="absolute right-0 bottom-0 h-[2px] w-6 bg-cyan-400 shadow-[0_0_10px_rgba(0,255,255,1)]" />
+        <div className="fixed bottom-3 right-3 z-50 w-10 h-10 border-r border-b border-cyan-400/40 pointer-events-none">
+          <div className="absolute right-0 bottom-0 h-[2px] w-5 bg-cyan-400 shadow-[0_0_8px_rgba(0,255,255,1)]" />
         </div>
 
         {/* STATUS BAR */}
@@ -36,33 +36,31 @@ export default function Home() {
         </div>
 
         {/* HEADER COMPACTO */}
-        <div className="relative z-10 flex-shrink-0 flex items-center justify-between px-5 py-2 border-b border-cyan-400/10 bg-black/20 backdrop-blur-sm">
-          {/* ROBÔ + NOME */}
+        <div className="relative z-10 flex-shrink-0 flex items-center justify-between px-4 py-2 border-b border-cyan-400/10 bg-black/30 backdrop-blur-sm">
           <div className="flex items-center gap-3">
-            <div className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-cyan-400/30 bg-cyan-400/10">
-              <div className="absolute top-[7px] left-[6px] h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_8px_rgba(0,255,255,1)] animate-pulse" />
-              <div className="absolute top-[7px] right-[6px] h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_8px_rgba(0,255,255,1)] animate-pulse" />
-              <div className="absolute bottom-[6px] h-[3px] w-4 rounded-full bg-cyan-300/80" />
-              <div className="absolute -top-2 h-3 w-[2px] bg-cyan-300" />
-              <div className="absolute -top-3 h-2 w-2 rounded-full bg-cyan-300 shadow-[0_0_10px_rgba(0,255,255,1)] animate-pulse" />
+            <div className="relative flex h-8 w-8 items-center justify-center rounded-xl border border-cyan-400/30 bg-cyan-400/10 flex-shrink-0">
+              <div className="absolute top-[6px] left-[5px] h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_6px_rgba(0,255,255,1)] animate-pulse" />
+              <div className="absolute top-[6px] right-[5px] h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_6px_rgba(0,255,255,1)] animate-pulse" />
+              <div className="absolute bottom-[5px] h-[2px] w-3.5 rounded-full bg-cyan-300/80" />
+              <div className="absolute -top-1.5 h-2.5 w-[2px] bg-cyan-300" />
+              <div className="absolute -top-2.5 h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_8px_rgba(0,255,255,1)] animate-pulse" />
             </div>
             <div>
-              <h1 className="bg-gradient-to-r from-cyan-200 to-cyan-400 bg-clip-text text-sm font-black tracking-[0.3em] text-transparent">
+              <h1 className="bg-gradient-to-r from-cyan-200 to-cyan-400 bg-clip-text text-sm font-black tracking-[0.25em] text-transparent leading-none">
                 JARBAS AI
               </h1>
-              <p className="text-[8px] font-mono uppercase tracking-[0.3em] text-cyan-200/40">
+              <p className="text-[8px] font-mono uppercase tracking-[0.25em] text-cyan-200/40 mt-0.5">
                 Quantum Neural Intelligence
               </p>
             </div>
           </div>
 
-          {/* STATUS + GITHUB */}
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5">
-              <div className="relative h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(0,255,120,1)]">
+              <div className="relative h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(0,255,120,1)]">
                 <div className="absolute inset-0 rounded-full bg-emerald-400 blur-sm animate-pulse" />
               </div>
-              <span className="text-[8px] font-mono uppercase tracking-[0.3em] text-emerald-300">ONLINE</span>
+              <span className="text-[8px] font-mono uppercase tracking-[0.25em] text-emerald-300">ONLINE</span>
             </div>
             <a
               href="https://github.com/AparecidoHonorato/jarbas"
@@ -77,13 +75,9 @@ export default function Home() {
           </div>
         </div>
 
-        {/* CHAT — ocupa todo o espaço restante */}
-        <div className="relative z-10 flex-1 overflow-hidden">
-          <div className="absolute inset-0 rounded-none border-0 bg-transparent backdrop-blur-[8px]">
-            <div className="relative h-full overflow-y-auto px-2 py-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-cyan-400/20">
-              <ChatPanel />
-            </div>
-          </div>
+        {/* CHAT — flex-1 + min-h-0 para ocupar espaço restante sem overflow */}
+        <div className="relative z-10 flex-1 min-h-0">
+          <ChatPanel />
         </div>
 
       </div>
